@@ -359,7 +359,7 @@ function render(){
       <td class="${pl>=0?"win":"loss"}">${money(pl)}</td>
       <td>${money(cumulative)}</td>
       <td>${money(balanceNow)}</td>
-      <td class="${pl>=0?"win":"loss"}">${pl>=0?"WIN":"LOSS"}</td>
+      <td class="${ totalStake > 0 && pl > 0 ? 'win' : totalStake > 0 && pl < 0 ? 'loss' : '' }">${ totalStake > 0 && pl > 0 ? 'WIN' : totalStake > 0 && pl < 0 ? 'LOSS' : '—' }</td>
       <td>
         <select>
           <option value=""></option>
