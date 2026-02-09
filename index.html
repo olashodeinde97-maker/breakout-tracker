@@ -48,7 +48,7 @@ header{
   display:flex;
   align-items:flex-end;
   justify-content:space-between;
-  gap:16px;
+  gap:12px;
   flex-wrap:wrap;
   margin-bottom:18px;
 }
@@ -65,6 +65,34 @@ h1{
   font-size:13px;
   color:var(--muted);
 }
+
+.headerBtns{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+
+button{
+  background:#fff;
+  color:#0b0b0d;
+  border:none;
+  border-radius:999px;
+  padding:10px 16px;
+  font-weight:600;
+  letter-spacing:.2px;
+  cursor:pointer;
+  box-shadow:0 6px 18px rgba(0,0,0,.35);
+}
+button:hover{ transform:translateY(-1px); }
+button:active{ transform:translateY(0px); opacity:0.92; }
+
+button.secondary{
+  background:rgba(255,255,255,0.08);
+  color:var(--text);
+  border:1px solid var(--border);
+  box-shadow:none;
+}
+button.secondary:hover{ background:rgba(255,255,255,0.11); transform:translateY(-1px); }
 
 .topbar{
   display:flex;
@@ -117,20 +145,6 @@ h1{
   background:rgba(255,255,255,0.85);
   opacity:0.9;
 }
-
-button{
-  background:#fff;
-  color:#0b0b0d;
-  border:none;
-  border-radius:999px;
-  padding:10px 16px;
-  font-weight:600;
-  letter-spacing:.2px;
-  cursor:pointer;
-  box-shadow:0 6px 18px rgba(0,0,0,.35);
-}
-button:hover{ transform:translateY(-1px); }
-button:active{ transform:translateY(0px); opacity:0.92; }
 
 table{
   width:100%;
@@ -194,23 +208,30 @@ input:focus, select:focus{
   border:1px solid rgba(255,255,255,0.06);
 }
 
-.badge.win{
-  background: rgba(52,211,153,.12);
-  color:#6ee7b7;
-}
-.badge.loss{
-  background: rgba(248,113,113,.12);
-  color:#fca5a5;
-}
-.badge.be{
-  background: rgba(147,197,253,.12);
-  color:#93c5fd;
-}
+.badge.win{ background: rgba(52,211,153,.12); color:#6ee7b7; }
+.badge.loss{ background: rgba(248,113,113,.12); color:#fca5a5; }
+.badge.be{ background: rgba(147,197,253,.12); color:#93c5fd; }
 
 .smallHint{
   color:var(--muted);
   font-size:12px;
   margin-top:10px;
+}
+
+.saveDot{
+  display:inline-block;
+  width:8px;height:8px;border-radius:999px;
+  background:rgba(255,255,255,0.22);
+  margin-left:8px;
+  vertical-align:middle;
+}
+.saveDot.ok{ background:rgba(52,211,153,.7); }
+.saveDot.err{ background:rgba(248,113,113,.8); }
+
+.statusLine{
+  margin-top:10px;
+  font-size:12px;
+  color:var(--muted);
 }
 </style>
 </head>
@@ -220,9 +241,12 @@ input:focus, select:focus{
 <header>
   <div>
     <h1>₦1M Breakout</h1>
-    <div class="sub">Headies & Harry · Starting capital ₦1,000,000 · Breakeven after first 10 winning days</div>
+    <div class="sub">Headies & Harry · Shared tracker (Google Sheets backend) · Breakeven after first 10 winning days</div>
   </div>
-  <button id="addBtn" type="button">Add Game Day</button>
+  <div class="headerBtns">
+    <button class="secondary" id="reloadBtn" type="button">Reload</button>
+    <button id="addBtn" type="button">Add Game Day</button>
+  </div>
 </header>
 
 <div class="topbar">
@@ -283,33 +307,100 @@ input:focus, select:focus{
   <tbody></tbody>
 </table>
 
-<div class="smallHint">
-  Tip: “Winner” is your manual record of who actually won that day. Win rates are calculated only on days each person staked (&gt; 0).
-</div>
+<div class="statusLine" id="statusLine">Status: idle</div>
+<div class="smallHint">Edits save automatically. Reload pulls the latest data from the shared Google Sheet.</div>
 
 <script>
 (() => {
   const STARTING_CAPITAL = 1000000;
 
+  // ✅ Your Apps Script Web App URL
+  const API_URL = "https://script.google.com/macros/s/AKfycbxD59C5mDEVAumJy-O4NyE54QNdq2ZEN05wy3KhsJrlOlEMmoYyy5yrRKW1eqT9LGTW/exec";
+
   const $ = (id) => document.getElementById(id);
   const tbody = () => document.querySelector("#tracker tbody");
   const pct = (n) => (isFinite(n) ? (n * 100).toFixed(0) : "0") + "%";
 
-  function addRow(){
+  const saveTimers = new WeakMap(); // per-row debounce timers
+
+  function setStatus(msg){ $("statusLine").textContent = "Status: " + msg; }
+
+  function isPlayedRow(row){
+    const dateVal = row.cells[1].querySelector("input").value;
+    const headiesStake = Number(row.cells[2].querySelector("input").value || 0);
+    const harryStake   = Number(row.cells[4].querySelector("input").value || 0);
+    const ret          = Number(row.cells[7].querySelector("input").value || 0);
+    const stake = headiesStake + harryStake;
+    return !!dateVal || stake > 0 || ret > 0;
+  }
+
+  function payloadFromRow(row){
+    return {
+      _rowNumber: row.dataset.rowNumber ? Number(row.dataset.rowNumber) : 0,
+      Date: row.cells[1].querySelector("input").value,
+      HeadiesStake: row.cells[2].querySelector("input").value,
+      HeadiesOdds: row.cells[3].querySelector("input").value,
+      HarryStake: row.cells[4].querySelector("input").value,
+      HarryOdds: row.cells[5].querySelector("input").value,
+      TotalReturn: row.cells[7].querySelector("input").value,
+      Winner: row.cells[12].querySelector("select").value,
+      Notes: row.cells[14].querySelector("input").value
+    };
+  }
+
+  async function saveRow(row){
+    // Only save rows that look like real entries
+    if (!isPlayedRow(row)) return;
+
+    const dot = row._saveDot;
+    if (dot) { dot.className = "saveDot"; }
+
+    try{
+      setStatus("saving…");
+      const res = await fetch(API_URL, {
+        method: "POST",
+        body: JSON.stringify(payloadFromRow(row)) // no custom headers → avoids preflight pain
+      });
+
+      const out = await res.json().catch(() => ({}));
+
+      if (out && out.ok && out._rowNumber){
+        row.dataset.rowNumber = String(out._rowNumber);
+        if (dot) dot.className = "saveDot ok";
+        setStatus("saved");
+      } else {
+        if (dot) dot.className = "saveDot err";
+        setStatus("save failed (bad response)");
+      }
+    } catch(err){
+      if (dot) dot.className = "saveDot err";
+      setStatus("save failed (network/permissions)");
+    }
+  }
+
+  function scheduleSave(row){
+    if (saveTimers.has(row)) clearTimeout(saveTimers.get(row));
+    const t = setTimeout(() => saveRow(row), 650);
+    saveTimers.set(row, t);
+  }
+
+  function addRowWithData(data = {}){
     const tr = document.createElement("tr");
+    tr.dataset.rowNumber = data._rowNumber ? String(data._rowNumber) : "";
+
     tr.innerHTML = `
       <td></td>
-      <td><input type="date"></td>
+      <td><input type="date" value="${escapeAttr(data.Date)}"></td>
 
-      <td><input type="number" min="0" inputmode="numeric" placeholder="₦"></td>
-      <td class="odds"><input type="number" step="0.01" min="1" inputmode="decimal" placeholder="e.g. 5"></td>
+      <td><input type="number" min="0" inputmode="numeric" placeholder="₦" value="${escapeAttr(data.HeadiesStake)}"></td>
+      <td class="odds"><input type="number" step="0.01" min="1" inputmode="decimal" placeholder="e.g. 5" value="${escapeAttr(data.HeadiesOdds)}"></td>
 
-      <td><input type="number" min="0" inputmode="numeric" placeholder="₦"></td>
-      <td class="odds"><input type="number" step="0.01" min="1" inputmode="decimal" placeholder="e.g. 3"></td>
+      <td><input type="number" min="0" inputmode="numeric" placeholder="₦" value="${escapeAttr(data.HarryStake)}"></td>
+      <td class="odds"><input type="number" step="0.01" min="1" inputmode="decimal" placeholder="e.g. 3" value="${escapeAttr(data.HarryOdds)}"></td>
 
       <td></td>
 
-      <td><input type="number" min="0" inputmode="numeric" placeholder="₦"></td>
+      <td><input type="number" min="0" inputmode="numeric" placeholder="₦" value="${escapeAttr(data.TotalReturn)}"></td>
       <td></td>
       <td></td>
       <td></td>
@@ -318,26 +409,60 @@ input:focus, select:focus{
 
       <td>
         <select>
-          <option value="">—</option>
-          <option value="Headies">Headies</option>
-          <option value="Harry">Harry</option>
-          <option value="Both">Both</option>
-          <option value="None">None</option>
+          <option value="" ${sel(data.Winner,"")}>—</option>
+          <option value="Headies" ${sel(data.Winner,"Headies")}>Headies</option>
+          <option value="Harry" ${sel(data.Winner,"Harry")}>Harry</option>
+          <option value="Both" ${sel(data.Winner,"Both")}>Both</option>
+          <option value="None" ${sel(data.Winner,"None")}>None</option>
         </select>
+        <span class="saveDot"></span>
       </td>
 
       <td></td>
-      <td class="note"><input placeholder="optional"></td>
+      <td class="note"><input placeholder="optional" value="${escapeAttr(data.Notes)}"></td>
     `;
+
+    // store a reference to the dot (inside the Winner cell)
+    tr._saveDot = tr.cells[12].querySelector(".saveDot");
 
     tbody().appendChild(tr);
 
     tr.querySelectorAll("input, select").forEach(el => {
-      el.addEventListener("input", recalc);
-      el.addEventListener("change", recalc);
+      el.addEventListener("input", () => { recalc(); scheduleSave(tr); });
+      el.addEventListener("change", () => { recalc(); scheduleSave(tr); });
     });
 
     recalc();
+  }
+
+  function escapeAttr(v){
+    if (v === null || v === undefined) return "";
+    return String(v).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+  function sel(val, target){
+    return String(val || "") === String(target) ? "selected" : "";
+  }
+
+  async function loadFromSheet(){
+    setStatus("loading…");
+    try{
+      const res = await fetch(API_URL);
+      const out = await res.json();
+      const data = (out && out.ok && Array.isArray(out.data)) ? out.data : [];
+
+      tbody().innerHTML = "";
+      data.forEach(r => addRowWithData(r));
+
+      // If sheet is empty, start with one blank row
+      if (data.length === 0) addRowWithData({});
+
+      recalc();
+      setStatus("loaded");
+    } catch(err){
+      setStatus("load failed (check Apps Script access: Anyone)");
+      // still give user a blank row so UI isn't dead
+      if (tbody().children.length === 0) addRowWithData({});
+    }
   }
 
   function recalc(){
@@ -422,8 +547,9 @@ input:focus, select:focus{
   }
 
   document.addEventListener("DOMContentLoaded", () => {
-    $("addBtn").addEventListener("click", addRow);
-    addRow();
+    $("addBtn").addEventListener("click", () => addRowWithData({}));
+    $("reloadBtn").addEventListener("click", loadFromSheet);
+    loadFromSheet();
   });
 })();
 </script>
