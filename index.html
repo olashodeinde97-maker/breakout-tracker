@@ -1,300 +1,348 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-
+<meta charset="utf-8"/>
 <title>₦1M Breakout</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
 
 <style>
 :root{
-  --bg:#0b0d10;
-  --card:#14171c;
-  --border:#1f242c;
-  --muted:#9aa4b2;
-  --text:#e9edf3;
+  --bg:#0b0e12;
+  --card:rgba(255,255,255,.04);
+  --stroke:rgba(255,255,255,.08);
+  --text:#f4f6f8;
+  --muted:#9aa3ad;
   --accent:#6ee7d8;
-  --win:#22c55e;
-  --loss:#ef4444;
 }
 
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--text);
-font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
 
-h1{font-weight:500;margin:0}
-small{color:var(--muted)}
+body{
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:radial-gradient(1200px 500px at 10% -10%,#1b2330 0%,transparent 60%),var(--bg);
+  color:var(--text);
+  padding:28px;
+}
 
-.wrap{padding:28px;max-width:1300px;margin:auto}
+h1{margin:0 0 6px 0;font-weight:600;font-size:26px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:22px}
 
-.top{
-display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px
+.topbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+.controls{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+
+input.base{
+  background:var(--card);
+  border:1px solid var(--stroke);
+  color:#fff;
+  padding:8px 12px;
+  border-radius:999px;
+  width:110px;
+  text-align:right;
 }
 
 button{
-border:0;background:#fff;color:#000;
-border-radius:999px;padding:8px 14px;
-font-weight:500;cursor:pointer
+  background:#fff;
+  color:#000;
+  border:none;
+  padding:8px 14px;
+  border-radius:999px;
+  font-weight:500;
+  cursor:pointer;
 }
 
-input{
-background:#0f1217;color:var(--text);
-border:1px solid var(--border);
-border-radius:10px;padding:7px 10px;
-font-weight:400;
+.cards{
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+  margin:16px 0 20px;
 }
-
-.cardbar{display:flex;gap:14px;flex-wrap:wrap;margin:18px 0}
 
 .card{
-background:var(--card);
-border:1px solid var(--border);
-border-radius:16px;
-padding:14px 16px;
-min-width:170px
+  background:var(--card);
+  border:1px solid var(--stroke);
+  border-radius:14px;
+  padding:12px 14px;
+  min-width:150px;
 }
 
-.card h3{
-margin:0 0 4px 0;
-font-size:11px;
-letter-spacing:.06em;
-font-weight:500;
-color:var(--muted)
-}
-
-.card .val{
-font-size:20px;
-font-weight:500
-}
+.card .label{font-size:11px;color:var(--muted);letter-spacing:.08em}
+.card .val{font-size:22px;font-weight:600;margin-top:4px}
 
 .progress{
-height:6px;background:#0c0f14;border-radius:999px;overflow:hidden;margin-top:8px
+  height:6px;
+  border-radius:999px;
+  background:rgba(255,255,255,.1);
+  overflow:hidden;
+  margin-top:8px;
 }
-.bar{height:100%;background:linear-gradient(90deg,#6ee7d8,#60a5fa)}
+.progress span{
+  display:block;
+  height:100%;
+  width:0%;
+  background:linear-gradient(90deg,#6ee7d8,#60a5fa);
+}
 
 table{
-width:100%;border-collapse:separate;border-spacing:0 10px
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0 8px;
+  font-size:13px;
 }
 
-thead th{
-text-align:left;font-size:11px;color:var(--muted);font-weight:500
+th{
+  text-align:left;
+  color:var(--muted);
+  font-weight:500;
+  padding:0 10px 6px;
 }
 
-tbody tr{
-background:var(--card);
-border:1px solid var(--border)
+td{
+  background:var(--card);
+  border:1px solid var(--stroke);
+  padding:8px 10px;
 }
 
-tbody td{
-padding:10px
+tr td:first-child{border-radius:12px 0 0 12px}
+tr td:last-child{border-radius:0 12px 12px 0}
+
+input.cell, select.cell{
+  width:100%;
+  background:transparent;
+  border:none;
+  color:#fff;
+  outline:none;
+  font-family:inherit;
 }
 
-.badge.win{color:var(--win)}
-.badge.loss{color:var(--loss)}
+.right{text-align:right}
 
-.status{margin-top:10px;color:var(--muted);font-size:12px}
+.win{color:#6ee7d8;font-weight:600}
+.loss{color:#f87171;font-weight:600}
+
+.footer{
+  margin-top:10px;
+  font-size:12px;
+  color:var(--muted);
+}
 </style>
 </head>
 
 <body>
-<div class="wrap">
 
-<div class="top">
+<div class="topbar">
   <div>
     <h1>₦1M Breakout</h1>
-    <small>Headies & Harry – Google Sheets backend · breakeven = balance vs ₦1,000,000</small>
+    <div class="sub">
+      Headies & Harry · Google Sheets backend · breakeven = balance vs ₦1,000,000
+    </div>
   </div>
 
-  <div style="display:flex;gap:10px">
-    <input id="startBal" type="number" value="1170000" title="Current balance"/>
+  <div class="controls">
+    <input id="startBalance" class="base" type="number" value="1170000">
     <button onclick="loadData()">Reload</button>
     <button onclick="addRow()">Add Game Day</button>
   </div>
 </div>
 
-<div class="cardbar">
-
+<div class="cards">
+  <div class="card"><div class="label">TOTAL PLAYED DAYS</div><div class="val" id="played">0</div></div>
+  <div class="card"><div class="label">TOTAL WINS</div><div class="val" id="wins">0</div></div>
+  <div class="card"><div class="label">HEADIES WIN RATE</div><div class="val" id="hw">0%</div></div>
+  <div class="card"><div class="label">HARRY WIN RATE</div><div class="val" id="hr">0%</div></div>
   <div class="card">
-    <h3>TOTAL PLAYED DAYS</h3>
-    <div class="val" id="totalDays">0</div>
+    <div class="label">BREAKEVEN PROGRESS</div>
+    <div class="val" id="be">0 / 10</div>
+    <div class="progress"><span id="beBar"></span></div>
   </div>
-
-  <div class="card">
-    <h3>TOTAL WINS</h3>
-    <div class="val" id="totalWins">0</div>
-  </div>
-
-  <div class="card">
-    <h3>HEADIES WIN RATE</h3>
-    <div class="val" id="headiesRate">0%</div>
-  </div>
-
-  <div class="card">
-    <h3>HARRY WIN RATE</h3>
-    <div class="val" id="harryRate">0%</div>
-  </div>
-
-  <div class="card">
-    <h3>BREAKEVEN PROGRESS</h3>
-    <div class="val" id="beTxt">0 / 10</div>
-    <div class="progress"><div id="beBar" class="bar" style="width:0%"></div></div>
-  </div>
-
-  <div class="card">
-    <h3>CURRENT BALANCE</h3>
-    <div class="val" id="balTxt">₦0</div>
-  </div>
-
+  <div class="card"><div class="label">CURRENT BALANCE</div><div class="val" id="bal">₦0</div></div>
 </div>
 
 <table>
 <thead>
 <tr>
-<th>#</th>
-<th>Date</th>
-<th>Headies Stake</th>
-<th>Headies Odds</th>
-<th>Harry Stake</th>
-<th>Harry Odds</th>
-<th>Total Return</th>
-<th>Win?</th>
-<th>Winner</th>
-<th>Notes</th>
+  <th>#</th>
+  <th>Date</th>
+  <th>Headies Stake</th>
+  <th>Headies Odds</th>
+  <th>Harry Stake</th>
+  <th>Harry Odds</th>
+  <th>Total Return</th>
+  <th>Win?</th>
+  <th>Winner</th>
+  <th>Notes</th>
 </tr>
 </thead>
 <tbody id="rows"></tbody>
 </table>
 
-<div class="status" id="status">Loading…</div>
-
-</div>
+<div class="footer" id="status">Loading…</div>
 
 <script>
-/* 🔴 PUT YOUR OWN DEPLOYED WEB APP URL HERE */
-const API = "https://script.google.com/macros/s/AKfycbxD59C5mDEVAumJy-O4NyE54QNdq2ZEN05wy3KhsJrlOlEMmoYyy5yrRKW1eqT9LGTW/exec";
+/* ================= CONFIG ================= */
 
-const TARGET = 1000000;
-const UNIT = 100000;
+const API_URL = "PASTE_YOUR_WEB_APP_URL_HERE";
 
-let data = [];
+/* ========================================= */
+
+let rowsData = [];
 
 function money(n){
-  return "₦" + Number(n||0).toLocaleString();
+  return "₦" + (Number(n)||0).toLocaleString();
 }
 
-async function loadData(){
-  document.getElementById("status").textContent="Loading…";
-  const r = await fetch(API);
-  const j = await r.json();
-  data = j.data || [];
-  render();
+function loadData(){
+  fetch(API_URL)
+    .then(r=>r.json())
+    .then(j=>{
+      rowsData = j.data || [];
+      render();
+      document.getElementById("status").textContent="Loaded";
+    })
+    .catch(()=>{
+      document.getElementById("status").textContent="Load error";
+    });
 }
 
 function render(){
-
   const tbody = document.getElementById("rows");
   tbody.innerHTML="";
 
-  let wins=0;
-  let hWin=0, hTot=0, haWin=0, haTot=0;
-  let cumulative = 0;
+  let cumulativePL = 0;
+  let wins = 0;
+  let played = 0;
+  let headiesWins=0, harryWins=0;
 
-  const startBalance = Number(document.getElementById("startBal").value || 0);
+  rowsData.forEach((r,i)=>{
 
-  data.forEach((r,i)=>{
+    const hs = Number(r.HeadiesStake||0);
+    const ho = Number(r.HeadiesOdds||0);
+    const as = Number(r.HarryStake||0);
+    const ao = Number(r.HarryOdds||0);
+    const tr = Number(r.TotalReturn||0);
 
-    const totalStake =
-      (Number(r.HeadiesStake||0)+Number(r.HarryStake||0));
+    const totalStake = hs + as;
+    let pl = 0;
 
-    const totalReturn = Number(r.TotalReturn||0);
-
-    const pl = totalReturn - totalStake;
-
-    cumulative += pl;
-
-    const balNow = startBalance + cumulative;
-
-    const winClass =
-      totalStake>0 && pl>0 ? "win" :
-      totalStake>0 && pl<0 ? "loss" : "";
-
-    const winTxt =
-      totalStake>0 && pl>0 ? "WIN" :
-      totalStake>0 && pl<0 ? "LOSS" : "–";
-
-    if(pl>0) wins++;
-
-    if(r.HeadiesStake>0){
-      hTot++; if(pl>0) hWin++;
-    }
-    if(r.HarryStake>0){
-      haTot++; if(pl>0) haWin++;
+    if(totalStake>0){
+      pl = tr - totalStake;
+      played++;
+      if(pl>0) wins++;
     }
 
-    const tr = document.createElement("tr");
+    cumulativePL += pl;
 
-    tr.innerHTML = `
-      <td>${i+1}</td>
-      <td><input type="date" value="${r.Date||""}" onchange="save(${r._rowNumber},this,'Date')"></td>
-      <td><input type="number" value="${r.HeadiesStake||""}" onchange="save(${r._rowNumber},this,'HeadiesStake')"></td>
-      <td><input type="number" step="0.01" value="${r.HeadiesOdds||""}" onchange="save(${r._rowNumber},this,'HeadiesOdds')"></td>
-      <td><input type="number" value="${r.HarryStake||""}" onchange="save(${r._rowNumber},this,'HarryStake')"></td>
-      <td><input type="number" step="0.01" value="${r.HarryOdds||""}" onchange="save(${r._rowNumber},this,'HarryOdds')"></td>
-      <td><input type="number" value="${r.TotalReturn||""}" onchange="save(${r._rowNumber},this,'TotalReturn')"></td>
-      <td class="badge ${winClass}">${winTxt}</td>
-      <td>
-        <input value="${r.Winner||""}" onchange="save(${r._rowNumber},this,'Winner')">
+    if(r.Winner==="Headies") headiesWins++;
+    if(r.Winner==="Harry") harryWins++;
+
+    const trEl = document.createElement("tr");
+
+    trEl.innerHTML = `
+      <td class="right">${i+1}</td>
+      <td><input class="cell" type="date" value="${r.Date||""}" onchange="save(${i})" data-f="Date"></td>
+      <td><input class="cell right" type="number" value="${r.HeadiesStake||""}" onchange="save(${i})" data-f="HeadiesStake"></td>
+      <td><input class="cell right" type="number" step="0.01" value="${r.HeadiesOdds||""}" onchange="save(${i})" data-f="HeadiesOdds"></td>
+      <td><input class="cell right" type="number" value="${r.HarryStake||""}" onchange="save(${i})" data-f="HarryStake"></td>
+      <td><input class="cell right" type="number" step="0.01" value="${r.HarryOdds||""}" onchange="save(${i})" data-f="HarryOdds"></td>
+      <td><input class="cell right" type="number" value="${r.TotalReturn||""}" onchange="save(${i})" data-f="TotalReturn"></td>
+      <td class="${pl>0?"win":pl<0?"loss":""}">
+        ${totalStake>0 ? (pl>0?"WIN":"LOSS") : "-"}
       </td>
       <td>
-        <input value="${r.Notes||""}" onchange="save(${r._rowNumber},this,'Notes')">
+        <select class="cell" onchange="save(${i})" data-f="Winner">
+          <option value=""></option>
+          <option ${r.Winner==="Headies"?"selected":""}>Headies</option>
+          <option ${r.Winner==="Harry"?"selected":""}>Harry</option>
+          <option ${r.Winner==="Both"?"selected":""}>Both</option>
+        </select>
       </td>
+      <td><input class="cell" value="${r.Notes||""}" onchange="save(${i})" data-f="Notes"></td>
     `;
 
-    tbody.appendChild(tr);
+    tbody.appendChild(trEl);
   });
 
-  document.getElementById("totalDays").textContent = data.length;
-  document.getElementById("totalWins").textContent = wins;
+  const start = Number(document.getElementById("startBalance").value||0);
+  const balance = start + cumulativePL;
 
-  document.getElementById("headiesRate").textContent =
-    hTot? Math.round(hWin/hTot*100)+"%":"0%";
+  const beUnits = Math.min(10, Math.max(0, Math.floor((balance - 1000000) / 100000)));
 
-  document.getElementById("harryRate").textContent =
-    haTot? Math.round(haWin/haTot*100)+"%":"0%";
+  document.getElementById("played").textContent = played;
+  document.getElementById("wins").textContent = wins;
 
-  const finalBalance = startBalance + cumulative;
+  document.getElementById("hw").textContent =
+    played?Math.round((headiesWins/played)*100)+"%":"0%";
 
-  const beUnits = Math.min(
-    10,
-    Math.max(0, Math.floor((finalBalance - TARGET) / UNIT))
-  );
+  document.getElementById("hr").textContent =
+    played?Math.round((harryWins/played)*100)+"%":"0%";
 
-  document.getElementById("beTxt").textContent = `${beUnits} / 10`;
+  document.getElementById("be").textContent = beUnits+" / 10";
   document.getElementById("beBar").style.width = (beUnits/10*100)+"%";
-  document.getElementById("balTxt").textContent = money(finalBalance);
 
-  document.getElementById("status").textContent="Loaded";
+  document.getElementById("bal").textContent = money(balance);
 }
 
-async function save(row,el,field){
+function save(i){
+  const tr = document.getElementById("rows").children[i];
+  const inputs = tr.querySelectorAll("[data-f]");
 
-  const payload = {_rowNumber: row};
-  payload[field] = el.value;
+  const obj = {_rowNumber: rowsData[i]._rowNumber};
 
-  await fetch(API,{
-    method:"POST",
-    body:JSON.stringify(payload)
+  inputs.forEach(el=>{
+    obj[el.dataset.f] = el.value;
   });
 
-  loadData();
+  fetch(API_URL,{
+    method:"POST",
+    body: JSON.stringify(obj),
+    headers:{ "Content-Type":"application/json" }
+  })
+  .then(r=>r.json())
+  .then(j=>{
+    if(j._rowNumber) rowsData[i]._rowNumber = j._rowNumber;
+    rowsData[i] = {...rowsData[i], ...obj};
+    render();
+    document.getElementById("status").textContent="Saved";
+  })
+  .catch(()=>{
+    document.getElementById("status").textContent="Save error";
+  });
 }
 
-async function addRow(){
-  await fetch(API,{
+function addRow(){
+  const obj = {
+    Date:"",
+    HeadiesStake:"",
+    HeadiesOdds:"",
+    HarryStake:"",
+    HarryOdds:"",
+    TotalReturn:"",
+    Winner:"",
+    Notes:""
+  };
+
+  fetch(API_URL,{
     method:"POST",
-    body:JSON.stringify({})
+    body: JSON.stringify(obj),
+    headers:{ "Content-Type":"application/json" }
+  })
+  .then(r=>r.json())
+  .then(j=>{
+    obj._rowNumber = j._rowNumber;
+    rowsData.push(obj);
+    render();
   });
-  loadData();
 }
 
 loadData();
