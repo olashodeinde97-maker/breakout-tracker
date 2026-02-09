@@ -70,6 +70,7 @@ h1{
   display:flex;
   gap:10px;
   align-items:center;
+  flex-wrap:wrap;
 }
 
 button{
@@ -93,6 +94,20 @@ button.secondary{
   box-shadow:none;
 }
 button.secondary:hover{ background:rgba(255,255,255,0.11); transform:translateY(-1px); }
+
+#startCapInput{
+  width:170px;
+  background:rgba(255,255,255,0.04);
+  border:1px solid var(--border);
+  color:var(--text);
+  border-radius:999px;
+  padding:10px 14px;
+  font-size:13px;
+}
+#startCapInput:focus{
+  outline:none;
+  border-color:var(--borderStrong);
+}
 
 .topbar{
   display:flex;
@@ -241,9 +256,11 @@ input:focus, select:focus{
 <header>
   <div>
     <h1>₦1M Breakout</h1>
-    <div class="sub">Headies & Harry · Shared tracker (Google Sheets backend) · Breakeven after first 10 winning days</div>
+    <div class="sub">Headies & Harry · Shared tracker (Google Sheets backend) · Breakeven progress = net ₦100k units (losses reduce it)</div>
   </div>
+
   <div class="headerBtns">
+    <input id="startCapInput" type="number" min="0" step="1000" placeholder="Starting ₦" />
     <button class="secondary" id="reloadBtn" type="button">Reload</button>
     <button id="addBtn" type="button">Add Game Day</button>
   </div>
@@ -271,7 +288,7 @@ input:focus, select:focus{
   </div>
 
   <div class="card">
-    <h3>Wins to Breakeven</h3>
+    <h3>Breakeven Progress</h3>
     <div class="val" id="beWins">0 / 10</div>
     <div class="progressWrap">
       <div class="progress"><div class="bar" id="beBar"></div></div>
@@ -280,7 +297,7 @@ input:focus, select:focus{
 
   <div class="card">
     <h3>Current Balance</h3>
-    <div class="val">₦<span id="balance">1,000,000</span></div>
+    <div class="val">₦<span id="balance">0</span></div>
   </div>
 </div>
 
@@ -312,18 +329,31 @@ input:focus, select:focus{
 
 <script>
 (() => {
-  const STARTING_CAPITAL = 1000000;
 
-  // ✅ Your Apps Script Web App URL
+  // ✅ Google Apps Script Web App URL
   const API_URL = "https://script.google.com/macros/s/AKfycbxD59C5mDEVAumJy-O4NyE54QNdq2ZEN05wy3KhsJrlOlEMmoYyy5yrRKW1eqT9LGTW/exec";
+
+  // ✅ Starting capital is now editable (persisted per browser)
+  let STARTING_CAPITAL = Number(localStorage.getItem("startingCapital") || 1000000);
+
+  const UNIT = 100000;      // ₦100k = 1 unit
+  const TARGET_UNITS = 10;  // 10 units = ₦1M recovery
 
   const $ = (id) => document.getElementById(id);
   const tbody = () => document.querySelector("#tracker tbody");
   const pct = (n) => (isFinite(n) ? (n * 100).toFixed(0) : "0") + "%";
 
-  const saveTimers = new WeakMap(); // per-row debounce timers
+  const saveTimers = new WeakMap();
 
   function setStatus(msg){ $("statusLine").textContent = "Status: " + msg; }
+
+  function escapeAttr(v){
+    if (v === null || v === undefined) return "";
+    return String(v).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+  function sel(val, target){
+    return String(val || "") === String(target) ? "selected" : "";
+  }
 
   function isPlayedRow(row){
     const dateVal = row.cells[1].querySelector("input").value;
@@ -349,17 +379,16 @@ input:focus, select:focus{
   }
 
   async function saveRow(row){
-    // Only save rows that look like real entries
     if (!isPlayedRow(row)) return;
 
     const dot = row._saveDot;
-    if (dot) { dot.className = "saveDot"; }
+    if (dot) dot.className = "saveDot";
 
     try{
       setStatus("saving…");
       const res = await fetch(API_URL, {
         method: "POST",
-        body: JSON.stringify(payloadFromRow(row)) // no custom headers → avoids preflight pain
+        body: JSON.stringify(payloadFromRow(row))
       });
 
       const out = await res.json().catch(() => ({}));
@@ -422,7 +451,6 @@ input:focus, select:focus{
       <td class="note"><input placeholder="optional" value="${escapeAttr(data.Notes)}"></td>
     `;
 
-    // store a reference to the dot (inside the Winner cell)
     tr._saveDot = tr.cells[12].querySelector(".saveDot");
 
     tbody().appendChild(tr);
@@ -435,14 +463,6 @@ input:focus, select:focus{
     recalc();
   }
 
-  function escapeAttr(v){
-    if (v === null || v === undefined) return "";
-    return String(v).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  }
-  function sel(val, target){
-    return String(val || "") === String(target) ? "selected" : "";
-  }
-
   async function loadFromSheet(){
     setStatus("loading…");
     try{
@@ -453,14 +473,12 @@ input:focus, select:focus{
       tbody().innerHTML = "";
       data.forEach(r => addRowWithData(r));
 
-      // If sheet is empty, start with one blank row
       if (data.length === 0) addRowWithData({});
 
       recalc();
       setStatus("loaded");
     } catch(err){
       setStatus("load failed (check Apps Script access: Anyone)");
-      // still give user a blank row so UI isn't dead
       if (tbody().children.length === 0) addRowWithData({});
     }
   }
@@ -470,14 +488,15 @@ input:focus, select:focus{
 
     let cumulative = 0;
     let overallWinDays = 0;
-    let beCount = 0;
     let playedDays = 0;
 
     let headiesDays = 0;
     let harryDays = 0;
-
     let headiesWins = 0;
     let harryWins = 0;
+
+    let beUnitsTotal = 0;
+    let prevBeUnits = 0;
 
     rows.forEach((row, i) => {
       const dateVal = row.cells[1].querySelector("input").value;
@@ -495,17 +514,19 @@ input:focus, select:focus{
       if (isPlayed && headiesStake > 0) headiesDays++;
       if (isPlayed && harryStake > 0) harryDays++;
 
+      // Update cumulative first
       cumulative += pnl;
-      const balance = STARTING_CAPITAL + cumulative;
 
+      // Win day is still P/L > 0 (for win count and WIN badge)
       const isWin = pnl > 0;
       if (isWin) overallWinDays++;
 
-      let countsBE = false;
-      if (isWin && overallWinDays <= 10){
-        countsBE = true;
-        beCount++;
-      }
+      // ✅ Breakeven progress is based on NET cumulative profit (losses reduce it)
+      prevBeUnits = beUnitsTotal;
+      beUnitsTotal = Math.min(TARGET_UNITS, Math.floor(Math.max(0, cumulative) / UNIT));
+      const countsBE = (beUnitsTotal > prevBeUnits);
+
+      const balance = STARTING_CAPITAL + cumulative;
 
       const winner = row.cells[12].querySelector("select").value;
       if (isPlayed){
@@ -537,20 +558,32 @@ input:focus, select:focus{
 
     $("totalDays").textContent = playedDays;
     $("totalWins").textContent = overallWinDays;
-    $("beWins").textContent = `${beCount} / 10`;
+
+    $("beWins").textContent = `${beUnitsTotal} / ${TARGET_UNITS}`;
+    $("beBar").style.width = Math.min(100, (beUnitsTotal / TARGET_UNITS) * 100) + "%";
+
     $("balance").textContent = (STARTING_CAPITAL + cumulative).toLocaleString();
 
     $("headiesRate").textContent = pct(headiesRate);
     $("harryRate").textContent = pct(harryRate);
-
-    $("beBar").style.width = Math.min(100, (beCount / 10) * 100) + "%";
   }
 
   document.addEventListener("DOMContentLoaded", () => {
+    const startInput = $("startCapInput");
+    startInput.value = STARTING_CAPITAL;
+
+    startInput.addEventListener("change", () => {
+      STARTING_CAPITAL = Number(startInput.value || 0);
+      localStorage.setItem("startingCapital", String(STARTING_CAPITAL));
+      recalc();
+    });
+
     $("addBtn").addEventListener("click", () => addRowWithData({}));
     $("reloadBtn").addEventListener("click", loadFromSheet);
+
     loadFromSheet();
   });
+
 })();
 </script>
 
