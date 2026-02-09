@@ -523,7 +523,7 @@ input:focus, select:focus{
 
       // ✅ Breakeven progress is based on NET cumulative profit (losses reduce it)
       prevBeUnits = beUnitsTotal;
-      beUnitsTotal = Math.min(TARGET_UNITS, Math.floor(Math.max(0, cumulative) / UNIT));
+      const baseTarget = 1000000; // ₦1,000,000 breakeven baseline const netVsBase = (STARTING_CAPITAL + cumulative) - baseTarget; // current balance minus ₦1m beUnitsTotal = Math.min(TARGET_UNITS, Math.floor(Math.max(0, netVsBase) / UNIT));
       const countsBE = (beUnitsTotal > prevBeUnits);
 
       const balance = STARTING_CAPITAL + cumulative;
